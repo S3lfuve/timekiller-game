@@ -1,0 +1,37 @@
+Original prompt: Create and iteratively polish the browser Phaser 3 survival arena game Time Killer.
+
+Progress:
+- Thor targeting now filters cluster candidates to enemies inside the current camera worldView, clamps strike centers inside the visible area, and sorts clusters by density with a distance-to-player penalty.
+- Aid kit is excluded from upgrade choices for queued level 3 and level 6 picks, then becomes available again after level 6.
+- Music mute/unmute now saves currentTime during the run and resumes from that saved position instead of doing a new random seek; random seek is reserved for the first music start of a new run.
+- Verification: `node --check game.js` passes, comment scan found no code comments, and the develop-web-game Playwright smoke test starts gameplay with visible grid, active music at 0.25 volume, and no console error artifact.
+- Enemy target-offset/surround experiment was reverted. Enemies again steer directly toward the player; existing separation and cyan hexagon dash/inertia remain intact.
+- Verification: `node --check game.js` passes, comment scan found no code comments, and the develop-web-game Playwright smoke test starts gameplay with visible grid and no console error artifact.
+- Enemy separation now has a chase-direction guard: if separation would flip an enemy velocity away from the player, that frame keeps the base chase/dash velocity instead. No offset/surround/flee logic exists.
+- Verification: `node --check game.js` passes, offset/flee scan found no leftover target-offset logic, comment scan found no code comments, and a 4-iteration Playwright run showed enemy distances decreasing toward the player.
+- Balance/UI pass: cyan hexagon uses 1.0072 wave speed scaling, waves use 8000 ms, Razer hit cooldown is 360 ms, Arrow Lv.3 speed is 1.15x with stronger Lv.2+ pierce bonus, Masochism is 4/4/5 projectile damage with 2s 35% slow and 150% AoE, Aid kit is +15% max HP plus 20% heal, and Healing was removed from upgrade choices.
+- Main menu settings button now shares the welcome entrance animation, and mobile settings opening moves the menu card down with a smooth settings-open state.
+- game.js was split into config.js, input.js, enemies.js, abilities.js, ui.js, audio.js, and game.js, all loaded as plain scripts from index.html without modules or a build step.
+- Verification: all JS files pass `node --check`; comment scan is clean; Healing scan is clean in JS; develop-web-game Playwright smoke test starts gameplay with visible grid and no console error artifact.
+- Camera fix was minimized after review: player acceleration/brake are back to 30/20, camera follow is back to immediate follow with `roundPixels=false`, and resize no longer centers the camera during active gameplay unless forced.
+- Verification: `node --check config.js` and `node --check game.js` pass, comment scan is clean, and the develop-web-game Playwright smoke test starts gameplay with visible grid and no crash.
+- EXP pickup lifetime is now 52500 ms with a 600 ms alpha-only fade-out. Pickup age pauses during magnet attraction, so an attracting pickup cannot despawn by lifetime until it leaves magnet range or is collected.
+- Mobile settings toggle no longer disables/restarts the welcome animation; the menu card has a normal transform transition and the welcome panel animation uses individual translate/scale properties to avoid transform conflicts.
+- Verification: `node --check config.js` and `node --check game.js` pass, comment scans are clean, develop-web-game smoke starts gameplay with visible grid and active EXP, and a 390px Playwright mobile check shows the settings panel above the menu with a 98 px gap and smooth intermediate menu transform.
+- Joystick opacity options now include 0%, EXP fill uses width-based rounded caps, mobile grid drawing overdraws the viewport edges by 12px to avoid edge artifacts, and the main menu card gets a rare background-gradient shimmer while menu rain is active.
+- Shimmer implementation was corrected after an overdraw/position version produced a hard horizontal band across the menu card. The fixed version keeps the base CSS background intact and briefly swaps the card's own background gradients with subtle top-right and lower-left radial/linear variants, then restores the base background.
+- Verification: `node --check ui.js`, `node --check game.js`, and `node --check config.js` pass; comment scans are clean; develop-web-game smoke starts gameplay with visible grid; a 390px Playwright check confirms joystick CSS opacity variable reaches 0, mobile settings gap stays clear, and mobile gameplay grid covers the viewport. Desktop shimmer screenshots were inspected and no hard clipped band remains.
+- Shimmer was corrected again after the two-step background swap looked choppy. The menu card now keeps one CSS background with a radial shimmer layer controlled by `--menu-shimmer-x`, `--menu-shimmer-y`, and `--menu-shimmer-alpha`; JS updates those variables via `requestAnimationFrame` over 980 ms every 3 seconds.
+- Verification: `node --check ui.js` passes, comment scans are clean, desktop screenshot shows no hard horizontal band, and Playwright samples show continuous variable updates across the shimmer instead of two timer jumps.
+- The menu card shimmer/canvas experiment was fully removed. The menu card is back to a static Liquid Glass background with no canvas, no shimmer timers, and no menu-card-canvas node.
+- Joystick opacity settings now lock on desktop when control type is Keyboard or Cursor, stay active for Joystick/Combined and mobile, and preserve the saved opacity while locked.
+- Main-menu background shapes are 10% larger and at least 5% more numerous on desktop, can be clicked with mouse to play a decorative pop animation without gameplay rewards, and active falling shapes are no longer cleared or reset by resize/visibility sync.
+- EXP fill is back to transform-based `scaleX` like HP, preserving rounded caps and smooth transition.
+- Verification: all JS files pass `node --check`; comment scans are clean; develop-web-game smoke runs under elevated Chromium; targeted Playwright checks confirmed no menu canvas, locked opacity does not save/change, joystick mode can change opacity, and a decorative shape enters/removes pop state.
+- Joystick opacity disabled state now transitions smoothly on desktop, menu rain shapes keep the normal cursor while preserving the click-pop easter egg, Bloody and Energy drink were added to the upgrade pool, and Masochism projectile counts are now 8/10/12.
+- Bloody applies only from normal/Shooter/Arrow projectiles, refreshes a single bleed status per enemy, adds Lv.2/Lv.3 slows without recoloring enemies, and bleed kills route through normal enemy death/EXP handling.
+- Energy drink applies non-stacking current-level speed and attack-rate bonuses from base values: +10/+15/+20% movement and +6/+12/+24% attack tempo.
+- Verification: `node --check config.js enemies.js game.js ui.js` passes; JS/CSS/HTML comment scans are clean; Playwright confirms desktop joystick opacity remains locked in Keyboard mode, mobile opacity remains active, Bloody/Energy constants are available in browser runtime, gameplay starts without console errors, and Energy/Bloody runtime effects report expected values.
+
+Suggestions:
+- For future resize work, keep Phaser Scale Manager as the single owner of physical canvas size and only update camera/grid/HUD around it.

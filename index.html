@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>vibe io game lol</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/png" href="icon.png" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="game-shell">
+      <div id="game-container" aria-label="Polyra IO"></div>
+
+      <section id="main-menu" class="screen screen-active">
+        <div id="menu-rain" class="menu-rain" aria-hidden="true"></div>
+        <div class="glass-card menu-card welcome-card">
+          <p class="eyebrow">infinity survival arena</p>
+          <h2>game.s3lf.ru</h2>
+          <p class="menu-copy">Руби геометрических врагов, прокачивайся и переживай бесконечные волны.</p>
+          <button id="play-button" class="primary-button" type="button">Играть</button>
+          <button id="settings-button" class="settings-button" type="button" aria-label="Настройки">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.5a2 2 0 0 1-1 1.73l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.09a2 2 0 0 1-1-1.73v-.5a2 2 0 0 1 1-1.72l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2Z"></path>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+          </button>
+        </div>
+        <aside id="settings-panel" class="glass-card settings-panel" aria-live="polite" aria-hidden="true">
+          <h3>Настройки</h3>
+          <div class="settings-list">
+            <div id="setting-control-type-row" class="settings-row">
+              <span class="settings-name">Тип управления</span>
+              <div class="settings-stepper">
+                <button class="settings-arrow" type="button" data-setting="controlType" data-dir="-1" aria-label="Предыдущее значение">‹</button>
+                <strong id="setting-controlType">Клавиатура</strong>
+                <button class="settings-arrow" type="button" data-setting="controlType" data-dir="1" aria-label="Следующее значение">›</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-name">Положение HUD</span>
+              <div class="settings-stepper">
+                <button class="settings-arrow" type="button" data-setting="hudPosition" data-dir="-1" aria-label="Предыдущее значение">‹</button>
+                <strong id="setting-hudPosition">Снизу</strong>
+                <button class="settings-arrow" type="button" data-setting="hudPosition" data-dir="1" aria-label="Следующее значение">›</button>
+              </div>
+            </div>
+            <div class="settings-row">
+              <span class="settings-name">Прозрачность джойстика</span>
+              <div class="settings-stepper">
+                <button class="settings-arrow" type="button" data-setting="joystickOpacity" data-dir="-1" aria-label="Предыдущее значение">‹</button>
+                <strong id="setting-joystickOpacity">75%</strong>
+                <button class="settings-arrow" type="button" data-setting="joystickOpacity" data-dir="1" aria-label="Следующее значение">›</button>
+              </div>
+            </div>
+          </div>
+        </aside>
+      </section>
+
+      <section id="game-over" class="screen dimmed-screen" aria-live="polite">
+        <div class="glass-card result-card">
+          <p class="eyebrow">game.s3lf.ru</p>
+          <h2>Забег завершен</h2>
+          <div class="stats-grid">
+            <div class="stat">
+              <span>Время</span>
+              <strong id="stat-time">00:00</strong>
+            </div>
+            <div class="stat">
+              <span>Уровень</span>
+              <strong id="stat-level">1</strong>
+            </div>
+            <div class="stat">
+              <span>Волна</span>
+              <strong id="stat-wave">1</strong>
+            </div>
+            <div class="stat">
+              <span>Убито</span>
+              <strong id="stat-kills">0</strong>
+            </div>
+            <div class="stat stat-wide">
+              <span>Опыт</span>
+              <strong id="stat-exp">0</strong>
+            </div>
+          </div>
+          <div class="result-actions">
+            <button id="restart-button" class="primary-button" type="button">Играть снова</button>
+            <button id="menu-button" class="ghost-button" type="button">В меню</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="upgrade-screen" class="screen dimmed-screen upgrade-screen" aria-live="polite">
+        <div id="upgrade-options" class="upgrade-options"></div>
+      </section>
+
+      <section id="pause-screen" class="screen dimmed-screen" aria-live="polite">
+        <div class="glass-card pause-card">
+          <p class="eyebrow">забег приостановлен</p>
+          <h2>Пауза</h2>
+          <div class="result-actions pause-actions">
+            <button id="resume-button" class="primary-button" type="button">Продолжить</button>
+            <button id="pause-menu-button" class="ghost-button" type="button">Главное меню</button>
+          </div>
+        </div>
+      </section>
+
+      <button id="pause-button" class="pause-button hidden" type="button" aria-label="Пауза">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="6" y="4" width="4" height="16" rx="1"></rect>
+          <rect x="14" y="4" width="4" height="16" rx="1"></rect>
+        </svg>
+      </button>
+      <button id="music-button" class="music-button hidden" type="button" aria-label="Music" aria-pressed="true">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9 18V5l12-2v13"></path>
+          <circle cx="6" cy="18" r="3"></circle>
+          <circle cx="18" cy="16" r="3"></circle>
+        </svg>
+      </button>
+
+      <div id="hud" class="hud hidden" aria-live="polite">
+        <div class="hud-row hud-topline">
+          <span id="hud-wave">Волна 1</span>
+          <span id="hud-time">00:00</span>
+        </div>
+        <div class="bars">
+          <div class="bar-block">
+            <div class="bar-label">
+              <span>HP</span>
+              <span id="hud-hp-text">100 / 100</span>
+            </div>
+            <div class="bar-track">
+              <div id="hp-fill" class="bar-fill hp-fill"></div>
+            </div>
+          </div>
+          <div class="bar-block">
+            <div class="bar-label">
+              <span id="hud-level">Level 1</span>
+              <span id="hud-exp-text">0 / 18</span>
+            </div>
+            <div class="bar-track">
+              <div id="exp-fill" class="bar-fill exp-fill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="level-toast" class="level-toast">LEVEL UP</div>
+      <div id="damage-vignette" class="damage-vignette"></div>
+      <div id="fade-layer" class="fade-layer"></div>
+
+      <div id="joystick" class="joystick" aria-hidden="true">
+        <div id="joystick-knob" class="joystick-knob"></div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="config.js"></script>
+    <script src="input.js"></script>
+    <script src="enemies.js"></script>
+    <script src="abilities.js"></script>
+    <script src="ui.js"></script>
+    <script src="audio.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>
