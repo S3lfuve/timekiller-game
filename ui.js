@@ -7,9 +7,17 @@ const dom = {
   menuCard: document.querySelector(".menu-card"),
   menuRain: document.getElementById("menu-rain"),
   gameOver: document.getElementById("game-over"),
+  resultCard: document.querySelector(".result-card"),
   pauseScreen: document.getElementById("pause-screen"),
   upgradeScreen: document.getElementById("upgrade-screen"),
   upgradeOptions: document.getElementById("upgrade-options"),
+  leaderboardButton: document.getElementById("leaderboard-button"),
+  leaderboardPanel: document.getElementById("leaderboard-panel"),
+  leaderboardCategoryButton: document.getElementById("leaderboard-category-button"),
+  leaderboardCategoryLabel: document.getElementById("leaderboard-category-label"),
+  leaderboardCategoryMenu: document.getElementById("leaderboard-category-menu"),
+  leaderboardList: document.getElementById("leaderboard-list"),
+  leaderboardPlayerRank: document.getElementById("leaderboard-player-rank"),
   settingsButton: document.getElementById("settings-button"),
   settingsPanel: document.getElementById("settings-panel"),
   settingControlRow: document.getElementById("setting-control-type-row"),
@@ -44,6 +52,9 @@ const dom = {
   statWave: document.getElementById("stat-wave"),
   statKills: document.getElementById("stat-kills"),
   statExp: document.getElementById("stat-exp"),
+  nicknamePanel: document.getElementById("nickname-panel"),
+  nicknameInput: document.getElementById("nickname-input"),
+  nicknameSaveButton: document.getElementById("nickname-save-button"),
 };
 
 const runtime = {
@@ -53,6 +64,9 @@ const runtime = {
   pendingStart: false,
   settings: null,
   musicEnabled: true,
+  leaderboardCategory: "score",
+  leaderboardRequestId: 0,
+  pendingLeaderboardRun: null,
 };
 
 const SETTINGS_STORAGE_KEY = "timeKillerSettings";
@@ -140,10 +154,36 @@ function syncSettingsPanelHeight() {
   if (!dom.settingsPanel || !dom.menuCard) return;
   if (window.matchMedia?.("(max-width: 1180px)")?.matches) {
     dom.settingsPanel.style.removeProperty("--settings-panel-height");
+    dom.leaderboardPanel?.style.removeProperty("--settings-panel-height");
     return;
   }
   const height = Math.round(dom.menuCard.getBoundingClientRect().height);
-  if (height > 0) dom.settingsPanel.style.setProperty("--settings-panel-height", `${height}px`);
+  if (height > 0) {
+    dom.settingsPanel.style.setProperty("--settings-panel-height", `${height}px`);
+    dom.leaderboardPanel?.style.setProperty("--settings-panel-height", `${height}px`);
+  }
+}
+
+function syncNicknamePanelPosition() {
+  if (!dom.gameOver || !dom.resultCard || !dom.nicknamePanel) return;
+  const resultHeight = Math.round(dom.resultCard.getBoundingClientRect().height);
+  const nicknameHeight = Math.round(dom.nicknamePanel.getBoundingClientRect().height);
+  if (resultHeight > 0) dom.gameOver.style.setProperty("--result-card-half", `${Math.round(resultHeight / 2)}px`);
+  if (nicknameHeight > 0) dom.gameOver.style.setProperty("--nickname-panel-half", `${Math.round(nicknameHeight / 2)}px`);
+}
+
+function setNicknamePanelActive(active) {
+  if (!dom.nicknamePanel || !dom.nicknameInput || !dom.nicknameSaveButton) return;
+  dom.nicknamePanel.setAttribute("aria-hidden", active ? "false" : "true");
+  dom.nicknamePanel.classList.toggle("is-active", active);
+  dom.nicknameInput.disabled = !active;
+  dom.nicknameInput.tabIndex = active ? 0 : -1;
+  if (!active) {
+    dom.nicknameInput.blur();
+    dom.nicknameSaveButton.disabled = true;
+  } else {
+    updateNicknameButton();
+  }
 }
 
 function applySettings(skipLabelKey = "") {
@@ -457,6 +497,9 @@ function showGameOver(summary) {
   dom.statWave.textContent = String(summary.wave);
   dom.statKills.textContent = String(summary.kills);
   dom.statExp.textContent = String(summary.exp);
+  prepareNicknamePanel(summary);
+  syncNicknamePanelPosition();
+  setNicknamePanelActive(true);
   dom.hud.classList.add("hidden");
   transitionTo(() => {
     dom.gameOver.classList.add("screen-active");
@@ -476,7 +519,9 @@ function hideScreens() {
   dom.gameOver.classList.remove("screen-active");
   dom.pauseScreen.classList.remove("screen-active");
   dom.upgradeScreen.classList.remove("screen-active");
+  setNicknamePanelActive(false);
   hideSettingsPanel();
+  hideLeaderboardPanel();
 }
 
 function showPauseScreen() {
@@ -513,6 +558,7 @@ function hideUpgradeScreen() {
 
 function showSettingsPanel() {
   if (runtime.mode !== "menu") return;
+  if (isMobileViewport()) hideLeaderboardPanel();
   syncSettingsPanelHeight();
   dom.menu.classList.add("settings-open");
   dom.settingsPanel.classList.add("open");
@@ -529,6 +575,222 @@ function toggleSettingsPanel() {
   if (runtime.mode !== "menu") return;
   if (dom.settingsPanel.classList.contains("open")) hideSettingsPanel();
   else showSettingsPanel();
+}
+
+function setLeaderboardCategoryMenuOpen(open) {
+  dom.leaderboardCategoryMenu?.classList.toggle("open", open);
+  dom.leaderboardCategoryMenu?.setAttribute("aria-hidden", open ? "false" : "true");
+  dom.leaderboardCategoryButton?.setAttribute("aria-expanded", open ? "true" : "false");
+}
+
+function formatLeaderboardValue(category, value) {
+  return window.TimeKillerLeaderboards?.formatValue(category, value) || String(value ?? "—");
+}
+
+function setLeaderboardAnimation(element, index = 0) {
+  element.classList.remove("leaderboard-animate-in");
+  element.style.setProperty("--leaderboard-delay", `${Math.min(index * 42, 462)}ms`);
+  void element.offsetWidth;
+  element.classList.add("leaderboard-animate-in");
+}
+
+function renderLeaderboardRows(category, rows, playerRank) {
+  if (!dom.leaderboardList) return;
+  dom.leaderboardList.innerHTML = "";
+  const normalizedRows = Array.isArray(rows) ? rows.slice(0, 10) : [];
+  for (let i = 0; i < 10; i += 1) {
+    const row = normalizedRows[i];
+    const element = document.createElement("div");
+    element.className = `leaderboard-row${row ? "" : " is-empty"}`;
+    const place = document.createElement("span");
+    const name = document.createElement("span");
+    const value = document.createElement("span");
+    place.textContent = `${i + 1}.`;
+    name.textContent = row?.player_name || "—";
+    value.textContent = row ? formatLeaderboardValue(category, row.value) : "—";
+    element.append(place, name, value);
+    setLeaderboardAnimation(element, i);
+    dom.leaderboardList.appendChild(element);
+  }
+  dom.leaderboardPlayerRank.innerHTML = "";
+  const rank = playerRank?.rank_position || playerRank?.place || null;
+  if (playerRank && Number(rank) > 10) {
+    const place = document.createElement("span");
+    const name = document.createElement("span");
+    const value = document.createElement("span");
+    place.textContent = `${rank}.`;
+    name.textContent = playerRank.player_name || "Ты";
+    value.textContent = formatLeaderboardValue(category, playerRank.value);
+    dom.leaderboardPlayerRank.append(place, name, value);
+    dom.leaderboardPlayerRank.classList.add("show");
+    setLeaderboardAnimation(dom.leaderboardPlayerRank, 10);
+  } else {
+    dom.leaderboardPlayerRank.classList.remove("show");
+  }
+}
+
+function renderLeaderboardMessage(message) {
+  if (!dom.leaderboardList) return;
+  dom.leaderboardList.innerHTML = "";
+  const element = document.createElement("div");
+  element.className = "leaderboard-message";
+  element.textContent = message;
+  setLeaderboardAnimation(element, 0);
+  dom.leaderboardList.appendChild(element);
+  dom.leaderboardPlayerRank.innerHTML = "";
+  dom.leaderboardPlayerRank.classList.remove("show");
+}
+
+async function loadLeaderboard(category = runtime.leaderboardCategory, force = false) {
+  const service = window.TimeKillerLeaderboards;
+  const requestId = runtime.leaderboardRequestId + 1;
+  runtime.leaderboardRequestId = requestId;
+  if (!service) {
+    renderLeaderboardMessage("Не удалось загрузить лидерборд");
+    return;
+  }
+  runtime.leaderboardCategory = service.labels[category] ? category : "score";
+  dom.leaderboardCategoryLabel.textContent = service.labels[runtime.leaderboardCategory];
+  dom.leaderboardCategoryMenu?.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.category === runtime.leaderboardCategory);
+  });
+  renderLeaderboardMessage("Загрузка...");
+  try {
+    const data = await service.loadCategory(runtime.leaderboardCategory, force);
+    if (requestId !== runtime.leaderboardRequestId) return;
+    renderLeaderboardRows(runtime.leaderboardCategory, data.top, data.playerRank);
+  } catch (error) {
+    if (requestId !== runtime.leaderboardRequestId) return;
+    renderLeaderboardMessage("Не удалось загрузить лидерборд");
+  }
+}
+
+function showLeaderboardPanel() {
+  if (runtime.mode !== "menu") return;
+  if (isMobileViewport()) hideSettingsPanel();
+  syncSettingsPanelHeight();
+  dom.menu.classList.add("leaderboard-open");
+  dom.leaderboardPanel.classList.add("open");
+  dom.leaderboardPanel.setAttribute("aria-hidden", "false");
+  loadLeaderboard(runtime.leaderboardCategory);
+}
+
+function hideLeaderboardPanel() {
+  dom.menu.classList.remove("leaderboard-open");
+  dom.leaderboardPanel?.classList.remove("open");
+  dom.leaderboardPanel?.setAttribute("aria-hidden", "true");
+  setLeaderboardCategoryMenuOpen(false);
+}
+
+function toggleLeaderboardPanel() {
+  if (runtime.mode !== "menu") return;
+  if (dom.leaderboardPanel.classList.contains("open")) hideLeaderboardPanel();
+  else showLeaderboardPanel();
+}
+
+function updateNicknameButton() {
+  const service = window.TimeKillerLeaderboards;
+  if (!service || !dom.nicknameInput || !dom.nicknameSaveButton) return;
+  const value = service.normalizePlayerName(dom.nicknameInput.value);
+  const saved = service.getSavedPlayerName();
+  dom.nicknameSaveButton.disabled = !service.isValidPlayerName(value) || value === saved;
+}
+
+function setNicknameTaken(active) {
+  if (!dom.nicknamePanel || !dom.nicknameInput) return;
+  const message = active ? "Ник занят" : "";
+  dom.nicknamePanel.toggleAttribute("data-status", Boolean(message));
+  if (message) dom.nicknamePanel.setAttribute("data-status", message);
+  dom.nicknameInput.classList.toggle("is-error", active);
+}
+
+function setNicknameSubmitError(error) {
+  if (!dom.nicknamePanel || !dom.nicknameInput) return;
+  const messages = {
+    nickname_taken: "Ник занят",
+    auth_failed: "Ошибка авторизации",
+    submit_failed: "Ошибка отправки",
+    leaderboard_unavailable: "Лидерборд недоступен",
+  };
+  const message = messages[error] || "";
+  dom.nicknamePanel.toggleAttribute("data-status", Boolean(message));
+  if (message) dom.nicknamePanel.setAttribute("data-status", message);
+  dom.nicknameInput.classList.toggle("is-error", Boolean(message));
+}
+
+function sanitizeNicknameInput() {
+  const service = window.TimeKillerLeaderboards;
+  if (!service || !dom.nicknameInput) return;
+  const sanitized = service.sanitizePlayerName
+    ? service.sanitizePlayerName(dom.nicknameInput.value)
+    : service.normalizePlayerName(dom.nicknameInput.value);
+  if (dom.nicknameInput.value !== sanitized) dom.nicknameInput.value = sanitized;
+  setNicknameTaken(false);
+}
+
+function prepareNicknamePanel(summary) {
+  const service = window.TimeKillerLeaderboards;
+  if (!service) return;
+  const savedName = service.getSavedPlayerName();
+  if (dom.nicknameInput) dom.nicknameInput.value = service.sanitizePlayerName ? service.sanitizePlayerName(savedName) : savedName;
+  runtime.pendingLeaderboardRun = {
+    summary,
+    submitted: false,
+    submitting: false,
+  };
+  updateNicknameButton();
+}
+
+function currentNicknameForSubmit() {
+  const service = window.TimeKillerLeaderboards;
+  if (!service) return "";
+  sanitizeNicknameInput();
+  const typed = service.normalizePlayerName(dom.nicknameInput?.value || "");
+  if (!service.isValidPlayerName(typed)) return "";
+  const saved = service.savePlayerName(typed);
+  if (dom.nicknameInput && saved) dom.nicknameInput.value = saved;
+  updateNicknameButton();
+  return saved;
+}
+
+async function submitPendingLeaderboardRun() {
+  const service = window.TimeKillerLeaderboards;
+  const pending = runtime.pendingLeaderboardRun;
+  if (!service || !pending || pending.submitted || pending.submitting) return "skipped";
+  const name = currentNicknameForSubmit();
+  if (!service.canSubmitRun(pending.summary, name)) return "skipped";
+  pending.submitting = true;
+  try {
+    const submitted = await service.submitRun(pending.summary, name);
+    pending.submitting = false;
+    if (submitted) {
+      pending.submitted = true;
+      if (dom.leaderboardPanel?.classList.contains("open")) loadLeaderboard(runtime.leaderboardCategory, true);
+      return "submitted";
+    }
+    const error = service.getSubmitError?.() || "submit_failed";
+    if (error === "nickname_taken" || error === "auth_failed" || error === "submit_failed" || error === "leaderboard_unavailable") {
+      setNicknameSubmitError(error);
+      return "blocked";
+    }
+    pending.submitted = true;
+    return "failed";
+  } catch (error) {
+    pending.submitting = false;
+    pending.submitted = true;
+    return "failed";
+  }
+}
+
+function saveNicknameFromInput() {
+  const service = window.TimeKillerLeaderboards;
+  if (!service || !dom.nicknameInput) return;
+  sanitizeNicknameInput();
+  const saved = service.savePlayerName(dom.nicknameInput.value);
+  if (saved) {
+    dom.nicknameInput.value = saved;
+    updateNicknameButton();
+  }
 }
 
 function setPauseButtonVisible(visible) {

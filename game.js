@@ -547,8 +547,16 @@
         esc: Phaser.Input.Keyboard.KeyCodes.ESC,
       });
       this.controls.cursors = this.input.keyboard.createCursorKeys();
+      this.input.keyboard.removeCapture([
+        Phaser.Input.Keyboard.KeyCodes.W,
+        Phaser.Input.Keyboard.KeyCodes.A,
+        Phaser.Input.Keyboard.KeyCodes.S,
+        Phaser.Input.Keyboard.KeyCodes.D,
+        Phaser.Input.Keyboard.KeyCodes.F,
+      ]);
 
       this.controls.keys.f.on("down", () => {
+        if (isTextInputActive()) return;
         if (!document.fullscreenElement) {
           dom.shell.requestFullscreen?.();
         } else {
@@ -556,7 +564,10 @@
         }
       });
 
-      this.controls.keys.esc.on("down", () => this.togglePause());
+      this.controls.keys.esc.on("down", () => {
+        if (isTextInputActive()) return;
+        this.togglePause();
+      });
 
       this.input.on("pointerdown", (pointer) => this.handlePointerDown(pointer));
       this.input.on("pointermove", (pointer) => this.handlePointerMove(pointer));
@@ -777,6 +788,7 @@
     }
 
     readKeyboardInput() {
+      if (isTextInputActive()) return { x: 0, y: 0 };
       let x = 0;
       let y = 0;
       const keys = this.controls.keys;
@@ -1863,12 +1875,17 @@
       setPauseButtonVisible(false);
       stopRunMusic();
       hidePauseScreen();
+      const score = Math.round(this.stats.totalExp);
       const summary = {
         time: formatTime(this.stats.survivalMs),
+        survivalTime: Math.floor(this.stats.survivalMs / 1000),
+        score,
         level: this.stats.level,
         wave: this.waveDirector.wave,
         kills: this.stats.kills,
         exp: formatExpValue(this.stats.totalExp),
+        expValue: roundExpValue(this.stats.totalExp),
+        deviceType: isMobileViewport() ? "mobile" : "desktop",
       };
       runtime.lastSummary = summary;
       showGameOver(summary);
@@ -2148,9 +2165,37 @@
   }
 
   dom.playButton.addEventListener("click", beginGame);
-  dom.restartButton.addEventListener("click", beginGame);
-  dom.menuButton.addEventListener("click", returnToMenu);
+  dom.restartButton.addEventListener("click", async () => {
+    if (await submitPendingLeaderboardRun() === "blocked") return;
+    beginGame();
+  });
+  dom.menuButton.addEventListener("click", async () => {
+    if (await submitPendingLeaderboardRun() === "blocked") return;
+    returnToMenu();
+  });
+  dom.leaderboardButton?.addEventListener("click", toggleLeaderboardPanel);
   dom.settingsButton.addEventListener("click", toggleSettingsPanel);
+  dom.leaderboardCategoryButton?.addEventListener("click", () => {
+    const open = !dom.leaderboardCategoryMenu.classList.contains("open");
+    setLeaderboardCategoryMenuOpen(open);
+  });
+  dom.leaderboardCategoryMenu?.querySelectorAll("button").forEach((button) => {
+    button.addEventListener("click", () => {
+      setLeaderboardCategoryMenuOpen(false);
+      loadLeaderboard(button.dataset.category);
+    });
+  });
+  dom.nicknameInput?.addEventListener("input", () => {
+    sanitizeNicknameInput();
+    updateNicknameButton();
+  });
+  ["keydown", "keypress", "keyup"].forEach((type) => {
+    dom.nicknameInput?.addEventListener(type, (event) => event.stopPropagation());
+  });
+  dom.nicknameSaveButton?.addEventListener("click", saveNicknameFromInput);
+  document.addEventListener("pointerdown", (event) => {
+    if (!dom.leaderboardPanel?.contains(event.target)) setLeaderboardCategoryMenuOpen(false);
+  });
   document.querySelectorAll(".settings-arrow").forEach((button) => {
     button.addEventListener("click", () => cycleSetting(button.dataset.setting, Number(button.dataset.dir)));
   });
@@ -2161,6 +2206,7 @@
   function forceResizeGame(force = false) {
     syncMenuRain();
     applySettings();
+    syncNicknamePanelPosition();
     runtime.scene?.queueResize(force);
   }
   function scheduleForceResize() {
@@ -2177,6 +2223,7 @@
   runtime.musicEnabled = loadMusicEnabled();
   updateMusicButton();
   applySettings();
+  setNicknamePanelActive(false);
   if (document.fonts?.ready) {
     document.fonts.ready.then(syncSettingsPanelHeight).catch(() => {});
   }

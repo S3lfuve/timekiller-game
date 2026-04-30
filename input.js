@@ -18,3 +18,13 @@ function effectiveControlType() {
 function gameplayCameraZoom() {
   return isMobileViewport() ? 0.9 : 1;
 }
+
+function isTextInputElement(element) {
+  if (!element) return false;
+  const tag = element.tagName;
+  return element.isContentEditable || tag === "INPUT" || tag === "TEXTAREA";
+}
+
+function isTextInputActive() {
+  return isTextInputElement(document.activeElement);
+}

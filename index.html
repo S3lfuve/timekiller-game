@@ -23,6 +23,12 @@
           <p class="eyebrow">infinity survival arena</p>
           <h2>game.s3lf.ru</h2>
           <p class="menu-copy">Руби геометрических врагов, прокачивайся и переживай бесконечные волны.</p>
+          <button id="leaderboard-button" class="leaderboard-button" type="button" aria-label="Лидерборд">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="m2 8 4 10h12l4-10-6 4-4-7-4 7-6-4Z"></path>
+              <path d="M6 18h12"></path>
+            </svg>
+          </button>
           <button id="play-button" class="primary-button" type="button">Играть</button>
           <button id="settings-button" class="settings-button" type="button" aria-label="Настройки">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -31,6 +37,24 @@
             </svg>
           </button>
         </div>
+        <aside id="leaderboard-panel" class="glass-card leaderboard-panel" aria-live="polite" aria-hidden="true">
+          <h3>Лидерборд</h3>
+          <div class="leaderboard-dropdown">
+            <button id="leaderboard-category-button" class="leaderboard-category-button" type="button" aria-expanded="false">
+              <span id="leaderboard-category-label">Очки</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6 9 6 6 6-6"></path>
+              </svg>
+            </button>
+            <div id="leaderboard-category-menu" class="leaderboard-category-menu" aria-hidden="true">
+              <button type="button" data-category="score">Очки</button>
+              <button type="button" data-category="time">Время</button>
+              <button type="button" data-category="kills">Убийства</button>
+            </div>
+          </div>
+          <div id="leaderboard-list" class="leaderboard-list"></div>
+          <div id="leaderboard-player-rank" class="leaderboard-player-rank"></div>
+        </aside>
         <aside id="settings-panel" class="glass-card settings-panel" aria-live="polite" aria-hidden="true">
           <h3>Настройки</h3>
           <div class="settings-list">
@@ -92,6 +116,14 @@
             <button id="restart-button" class="primary-button" type="button">Играть снова</button>
             <button id="menu-button" class="ghost-button" type="button">В меню</button>
           </div>
+        </div>
+        <div id="nickname-panel" class="nickname-panel glass-card">
+          <input id="nickname-input" type="text" maxlength="8" autocomplete="nickname" spellcheck="false" placeholder="Никнейм в лидерборде" aria-label="Никнейм">
+          <button id="nickname-save-button" class="nickname-save-button" type="button" aria-label="Сохранить ник" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 6 9 17l-5-5"></path>
+            </svg>
+          </button>
         </div>
       </section>
 
@@ -161,12 +193,14 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script src="input.js"></script>
     <script src="enemies.js"></script>
     <script src="abilities.js"></script>
     <script src="ui.js"></script>
     <script src="audio.js"></script>
+    <script src="leaderboards.js"></script>
     <script src="game.js"></script>
   </body>
 </html>

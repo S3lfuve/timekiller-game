@@ -1,0 +1,250 @@
+"use strict";
+
+(() => {
+  const PROJECT_URL = "https://hbojcmkohqxwirysdalg.supabase.co";
+  const PUBLISHABLE_KEY = "sb_publishable_stgEvQyS4pIa85D6Qei08A_wui0kw7v";
+  const PLAYER_NAME_KEY = "timeKillerPlayerName";
+  const CLIENT_ID_KEY = "timeKillerLeaderboardClientId";
+  const CACHE_MS = 60000;
+  const CATEGORY_LABELS = {
+    score: "Очки",
+    time: "Время",
+    kills: "Убийства",
+  };
+  const state = {
+    client: null,
+    sessionPromise: null,
+    cache: new Map(),
+    submitError: "",
+    clientId: "",
+  };
+
+  function createClient() {
+    if (state.client) return state.client;
+    if (!window.supabase?.createClient) return null;
+    state.client = window.supabase.createClient(PROJECT_URL, PUBLISHABLE_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+      },
+    });
+    return state.client;
+  }
+
+  async function ensureSession() {
+    const client = createClient();
+    if (!client?.auth) return null;
+    if (state.sessionPromise) return state.sessionPromise;
+    state.sessionPromise = (async () => {
+      try {
+        const current = await client.auth.getSession();
+        if (current.data?.session) return current.data.session;
+        const anonymous = await client.auth.signInAnonymously();
+        if (anonymous.error) return null;
+        return anonymous.data?.session || null;
+      } catch (error) {
+        return null;
+      } finally {
+        state.sessionPromise = null;
+      }
+    })();
+    return state.sessionPromise;
+  }
+
+  function normalizePlayerName(value) {
+    return String(value || "").trim();
+  }
+
+  function sanitizePlayerName(value) {
+    return normalizePlayerName(value).replace(/[^A-Za-zА-Яа-яЁё0-9_-]/gu, "").slice(0, 8);
+  }
+
+  function isValidPlayerName(value) {
+    const name = normalizePlayerName(value);
+    return /^[A-Za-zА-Яа-яЁё0-9_-]{3,8}$/u.test(name);
+  }
+
+  function getSavedPlayerName() {
+    try {
+      const value = window.localStorage?.getItem(PLAYER_NAME_KEY) || "";
+      return isValidPlayerName(value) ? normalizePlayerName(value) : "";
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function savePlayerName(value) {
+    const name = normalizePlayerName(value);
+    if (!isValidPlayerName(name)) return "";
+    try {
+      window.localStorage?.setItem(PLAYER_NAME_KEY, name);
+    } catch (error) {}
+    return name;
+  }
+
+  function createClientId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    const bytes = new Uint8Array(16);
+    if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  }
+
+  function getClientId() {
+    const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (state.clientId && pattern.test(state.clientId)) return state.clientId;
+    try {
+      const saved = window.localStorage?.getItem(CLIENT_ID_KEY) || "";
+      if (pattern.test(saved)) {
+        state.clientId = saved;
+        return state.clientId;
+      }
+      state.clientId = createClientId();
+      window.localStorage?.setItem(CLIENT_ID_KEY, state.clientId);
+      return state.clientId;
+    } catch (error) {
+      state.clientId = state.clientId || createClientId();
+      return state.clientId;
+    }
+  }
+
+  function roundNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.round(number) : NaN;
+  }
+
+  function buildRunPayload(summary, playerName) {
+    const name = normalizePlayerName(playerName);
+    const payload = {
+      playerName: name,
+      score: roundNumber(summary?.score),
+      survivalTime: roundNumber(summary?.survivalTime),
+      kills: roundNumber(summary?.kills),
+      wave: roundNumber(summary?.wave),
+      level: roundNumber(summary?.level),
+      exp: roundNumber(summary?.expValue ?? summary?.exp),
+      deviceType: summary?.deviceType === "mobile" ? "mobile" : "desktop",
+    };
+    if (!isValidPlayerName(name)) return null;
+    if (payload.score < 0 || payload.score > 50000) return null;
+    if (payload.survivalTime < 10 || payload.survivalTime > 3600) return null;
+    if (payload.kills < 0 || payload.kills > 100000) return null;
+    if (payload.wave < 1 || payload.wave > 1000) return null;
+    if (payload.level < 1) return null;
+    if (payload.exp < 0 || payload.exp > 50000) return null;
+    if (!Number.isFinite(payload.score + payload.survivalTime + payload.kills + payload.wave + payload.level + payload.exp)) return null;
+    if (payload.kills > Math.max(30, payload.survivalTime * 35)) return null;
+    return payload;
+  }
+
+  function canSubmitRun(summary, playerName) {
+    return Boolean(buildRunPayload(summary, playerName));
+  }
+
+  async function submitRun(summary, playerName) {
+    const payload = buildRunPayload(summary, playerName);
+    if (!payload) return false;
+    state.submitError = "";
+    await ensureSession();
+    const client = createClient();
+    if (!client) {
+      state.submitError = "leaderboard_unavailable";
+      return false;
+    }
+    try {
+      const result = await client.rpc("submit_leaderboard_run", {
+        p_player_name: payload.playerName,
+        p_client_id: getClientId(),
+        p_score: payload.score,
+        p_survival_time: payload.survivalTime,
+        p_kills: payload.kills,
+        p_wave: payload.wave,
+        p_level: payload.level,
+        p_exp: payload.exp,
+        p_device_type: payload.deviceType,
+      });
+      if (result.error) {
+        state.submitError = parseSubmitError(result.error);
+        return false;
+      }
+      state.cache.clear();
+      return true;
+    } catch (error) {
+      state.submitError = parseSubmitError(error);
+      return false;
+    }
+  }
+
+  function parseSubmitError(error) {
+    const text = `${error?.message || ""} ${error?.details || ""} ${error?.hint || ""}`.toLowerCase();
+    if (text.includes("nickname_taken")) return "nickname_taken";
+    if (text.includes("auth_required")) return "auth_failed";
+    return "submit_failed";
+  }
+
+  function getSubmitError() {
+    return state.submitError;
+  }
+
+  function normalizeCategory(category) {
+    return CATEGORY_LABELS[category] ? category : "score";
+  }
+
+  async function loadCategory(category, force = false) {
+    const key = normalizeCategory(category);
+    const cached = state.cache.get(key);
+    const now = Date.now();
+    if (!force && cached && now - cached.loadedAt < CACHE_MS) return cached.data;
+    const client = createClient();
+    if (!client) throw new Error("leaderboard_unavailable");
+    await ensureSession();
+    const topResult = await client.rpc("get_leaderboard_top", { p_category: key });
+    if (topResult.error) throw topResult.error;
+    let playerRank = null;
+    try {
+      const rankResult = await client.rpc("get_leaderboard_player_rank", { p_category: key, p_client_id: getClientId() });
+      if (!rankResult.error) {
+        playerRank = Array.isArray(rankResult.data) ? rankResult.data[0] || null : rankResult.data || null;
+      }
+    } catch (error) {
+      playerRank = null;
+    }
+    const data = {
+      top: Array.isArray(topResult.data) ? topResult.data : [],
+      playerRank,
+    };
+    state.cache.set(key, { loadedAt: now, data });
+    return data;
+  }
+
+  function formatValue(category, value) {
+    const number = roundNumber(value);
+    if (!Number.isFinite(number)) return "—";
+    if (category === "time") {
+      const minutes = Math.floor(number / 60);
+      const seconds = number % 60;
+      return `${minutes} м. ${seconds} с.`;
+    }
+    return String(number);
+  }
+
+  ensureSession();
+
+  window.TimeKillerLeaderboards = {
+    labels: CATEGORY_LABELS,
+    loadCategory,
+    submitRun,
+    canSubmitRun,
+    getSubmitError,
+    getSavedPlayerName,
+    savePlayerName,
+    normalizePlayerName,
+    sanitizePlayerName,
+    isValidPlayerName,
+    formatValue,
+  };
+})();
