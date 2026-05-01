@@ -67,6 +67,8 @@ Progress:
 - Client submit error parsing now maps `invalid_player_name`, `value too long`, and `character varying(8)` to a visible nickname validation state instead of silently treating it as a generic submit failure.
 - Nickname limit was raised again to 16 characters because 13+ names were expected to pass. Updated HTML maxlength, client sanitize/regex, Supabase RPC regex, and UI error message; client error parsing also recognizes old `character varying(12)` DB errors.
 - Verification: `node --check leaderboards.js ui.js config.js game.js` passes; runtime nickname validation accepts a 16-character nickname and rejects/trims a 17-character nickname; old 12-character client limits are gone.
+- Supabase leaderboard hardening now drops every overloaded `submit_leaderboard_run` function before recreating the single run_id-protected RPC, adds a 6-starts-per-minute per-user start limiter, keeps the server elapsed-time check, and mirrors stricter wave/kills/exp/score sanity checks on the client.
+- Verification: `node --check leaderboards.js ui.js game.js` passes; SQL/comment scans are clean; client calls only `start_leaderboard_run` and the `submit_leaderboard_run` variant with `p_run_id`, with no `p_client_id` fallback.
 
 Suggestions:
 - For future resize work, keep Phaser Scale Manager as the single owner of physical canvas size and only update camera/grid/HUD around it.

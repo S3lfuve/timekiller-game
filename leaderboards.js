@@ -112,7 +112,11 @@
     if (payload.level < 1) return null;
     if (payload.exp < 0 || payload.exp > 50000) return null;
     if (!Number.isFinite(payload.score + payload.survivalTime + payload.kills + payload.wave + payload.level + payload.exp)) return null;
-    if (payload.kills > Math.max(30, payload.survivalTime * 35)) return null;
+    if (payload.wave > Math.floor(payload.survivalTime / 10) + 5) return null;
+    if (payload.kills > payload.survivalTime * 8 + 80) return null;
+    if (payload.exp > payload.survivalTime * 60 + 500) return null;
+    const maxScore = Math.min(50000, payload.survivalTime * 45 + payload.kills * 20 + payload.wave * 120 + payload.level * 80 + 500);
+    if (payload.score > maxScore || Math.abs(payload.score - payload.exp) > 5) return null;
     return payload;
   }
 
@@ -192,8 +196,8 @@
     if (text.includes("nickname_taken")) return "nickname_taken";
     if (text.includes("invalid_player_name") || text.includes("value too long") || text.includes("character varying(8)") || text.includes("character varying(12)")) return "nickname_invalid";
     if (text.includes("auth_required")) return "auth_failed";
-    if (text.includes("submit_cooldown")) return "submit_cooldown";
-    if (text.includes("run_not_active") || text.includes("run_already_submitted") || text.includes("invalid_run_id") || text.includes("run_rejected") || text.includes("invalid_elapsed_time") || text.includes("invalid_run_values")) return "run_rejected";
+    if (text.includes("submit_cooldown") || text.includes("start_cooldown")) return "submit_cooldown";
+    if (text.includes("run_not_active") || text.includes("run_already_submitted") || text.includes("invalid_run_id") || text.includes("run_rejected") || text.includes("invalid_elapsed_time") || text.includes("invalid_run_values") || text.includes("invalid_score")) return "run_rejected";
     return "submit_failed";
   }
 

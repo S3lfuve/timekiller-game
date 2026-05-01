@@ -144,9 +144,20 @@ as $$
 declare
   v_user_id uuid := auth.uid();
   v_run_id uuid;
+  v_recent_starts integer;
 begin
   if v_user_id is null then
     raise exception 'auth_required' using errcode = 'P0001';
+  end if;
+
+  select count(*)
+  into v_recent_starts
+  from public.leaderboard_runs_tracking
+  where user_id = v_user_id
+    and created_at > now() - interval '1 minute';
+
+  if v_recent_starts >= 6 then
+    raise exception 'start_cooldown' using errcode = 'P0001';
   end if;
 
   insert into public.leaderboard_runs_tracking (user_id)
@@ -210,9 +221,20 @@ begin
 end;
 $$;
 
-drop function if exists public.submit_leaderboard_run(text, integer, integer, integer, integer, integer, integer, text);
-drop function if exists public.submit_leaderboard_run(text, uuid, integer, integer, integer, integer, integer, integer, text);
-drop function if exists public.submit_leaderboard_run(uuid, text, integer, integer, integer, integer, integer, integer, text);
+do $$
+declare
+  v_function record;
+begin
+  for v_function in
+    select oid::regprocedure::text as signature
+    from pg_proc
+    where pronamespace = 'public'::regnamespace
+      and proname = 'submit_leaderboard_run'
+  loop
+    execute format('drop function if exists %s', v_function.signature);
+  end loop;
+end;
+$$;
 
 create or replace function public.submit_leaderboard_run(
   p_run_id uuid,
@@ -240,6 +262,7 @@ declare
   v_tracking record;
   v_server_elapsed integer;
   v_score integer;
+  v_max_score integer;
 begin
   if v_user_id is null then
     raise exception 'auth_required' using errcode = 'P0001';
@@ -297,7 +320,9 @@ begin
     return public.reject_leaderboard_run(p_run_id, v_user_id, v_player_name, 'invalid_exp', p_score, p_survival_time, p_kills, p_wave, p_level, p_exp);
   end if;
 
-  if p_score > 50000 or p_score > p_survival_time * 60 + 500 or abs(p_score - p_exp) > 5 then
+  v_max_score := least(50000, p_survival_time * 45 + p_kills * 20 + p_wave * 120 + p_level * 80 + 500);
+
+  if p_score > 50000 or p_score > v_max_score or abs(p_score - p_exp) > 5 then
     return public.reject_leaderboard_run(p_run_id, v_user_id, v_player_name, 'invalid_score', p_score, p_survival_time, p_kills, p_wave, p_level, p_exp);
   end if;
 
