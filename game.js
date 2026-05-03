@@ -433,7 +433,8 @@
       const gameWidth = Math.round(this.scale.gameSize.width);
       const gameHeight = Math.round(this.scale.gameSize.height);
 
-      this.clearJoystick();
+      const keepActiveJoystick = this.state === "playing" && this.controls.joystick.active && !force;
+      if (!keepActiveJoystick) this.clearJoystick();
 
       if (gameWidth !== width || gameHeight !== height) {
         this.scale.resize(width, height);
@@ -1110,18 +1111,16 @@
       if (visibleTargets.length === 0 && shooterLevel === 0 && bazookaLevel === 0) return;
       if (!this.getFreeBullet()) return;
 
+      let bazookaVolleyLevel = 0;
       if (bazookaLevel > 0) {
         this.bazookaAttackCounter += 1;
         const interval = BAZOOKA_ATTACK_INTERVALS[bazookaLevel] || 10;
         if (this.bazookaAttackCounter % interval === 0) {
-          if (this.fireBazooka(visibleTargets[0], time, bazookaLevel)) {
-            this.stats.lastFireAt = time;
-          }
-          return;
+          bazookaVolleyLevel = bazookaLevel;
         }
       }
 
-      if (this.fireShooterVolley(visibleTargets, time, shooterLevel)) {
+      if (this.fireShooterVolley(visibleTargets, time, shooterLevel, bazookaVolleyLevel)) {
         this.stats.lastFireAt = time;
       }
     }
@@ -1138,7 +1137,7 @@
       return CONFIG.playerSpeed * (1 + (ENERGY_DRINK_SPEED_BONUS[energyLevel] || 0));
     }
 
-    fireShooterVolley(visibleTargets, time, shooterLevel) {
+    fireShooterVolley(visibleTargets, time, shooterLevel, bazookaLevel = 0) {
       const count = SHOOTER_BULLET_COUNTS[shooterLevel] || 1;
       const arrowLevel = this.getSuperpowerLevel("arrow");
       const useArrow = arrowLevel > 0;
@@ -1153,6 +1152,10 @@
       for (let i = 0; i < count; i += 1) {
         const target = visibleTargets[i] || null;
         const direction = target ? this.directionToEnemy(target) : randomDirection();
+        if (bazookaLevel > 0 && i === 0) {
+          if (this.fireBazooka(target, time, bazookaLevel)) created += 1;
+          continue;
+        }
         const bullet = this.getFreeBullet();
         if (!bullet) break;
         bullet.fire(this.player.body.x, this.player.body.y, direction.x, direction.y, time, {

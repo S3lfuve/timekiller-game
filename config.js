@@ -131,7 +131,7 @@ const KNOCKBACK_RANGES = [null, { min: 6, max: 11 }, { min: 10, max: 15 }];
 const MASOCHISM_BULLET_COUNTS = [0, 8, 10, 12];
 const MASOCHISM_BULLET_DAMAGE = [0, 4, 4, 5];
 const MASOCHISM_KNOCKBACK_RANGE = { min: 8, max: 12 };
-const BAZOOKA_ATTACK_INTERVALS = [0, 10, 7, 5];
+const BAZOOKA_ATTACK_INTERVALS = [0, 8, 5, 3];
 const BAZOOKA_KNOCKBACK_RANGES = [null, null, { min: 14, max: 22 }, { min: 17, max: 26 }];
 const BAZOOKA_LIGHT_BLEED = { durationMs: 2000, damagePerSecond: 0.3, level: 0.5 };
 const BLOODY_CONFIG = {
@@ -178,9 +178,9 @@ const SUPERPOWER_REGISTRY = [
     title: "Bazooka",
     maxLevel: 3,
     descriptions: [
-      "Каждая 10-я атака заменяется взрывным снарядом.",
-      "Уровень 2: выстрел каждые 7 атак, увеличенный радиус, взрыв снаряда отталкивает врагов.",
-      "Уровень 3: выстрел каждые 5 атак, взрыв снаряда накладывает легкое кровотечение на врагов.",
+      "Каждая 8-я атака заменяет один снаряд взрывным.",
+      "Уровень 2: выстрел каждые 5 атак, увеличенный радиус, взрыв снаряда отталкивает врагов.",
+      "Уровень 3: выстрел каждые 3 атаки, взрыв снаряда накладывает легкое кровотечение на врагов.",
     ],
   },
   {

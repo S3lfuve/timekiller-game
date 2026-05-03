@@ -134,7 +134,7 @@ const KNOCKBACK_RANGES = [null, { min: 6, max: 11 }, { min: 10, max: 15 }];
 const MASOCHISM_BULLET_COUNTS = [0, 8, 10, 12];
 const MASOCHISM_BULLET_DAMAGE = [0, 4, 4, 5];
 const MASOCHISM_KNOCKBACK_RANGE = { min: 8, max: 12 };
-const BAZOOKA_ATTACK_INTERVALS = [0, 10, 7, 5];
+const BAZOOKA_ATTACK_INTERVALS = [0, 8, 5, 3];
 const BAZOOKA_KNOCKBACK_RANGES = [null, null, { min: 14, max: 22 }, { min: 17, max: 26 }];
 const BAZOOKA_LIGHT_BLEED = { durationMs: 2000, damagePerSecond: 0.3, level: 0.5 };
 const BLOODY_CONFIG = {
@@ -181,9 +181,9 @@ const SUPERPOWER_REGISTRY = [
     title: "Bazooka",
     maxLevel: 3,
     descriptions: [
-      "Каждая 10-я атака заменяется взрывным снарядом.",
-      "Уровень 2: выстрел каждые 7 атак, увеличенный радиус, взрыв снаряда отталкивает врагов.",
-      "Уровень 3: выстрел каждые 5 атак, взрыв снаряда накладывает легкое кровотечение на врагов.",
+      "Каждая 8-я атака заменяет один снаряд взрывным.",
+      "Уровень 2: выстрел каждые 5 атак, увеличенный радиус, взрыв снаряда отталкивает врагов.",
+      "Уровень 3: выстрел каждые 3 атаки, взрыв снаряда накладывает легкое кровотечение на врагов.",
     ],
   },
   {
@@ -2623,7 +2623,8 @@ const leaderboards = (() => {
       const gameWidth = Math.round(this.scale.gameSize.width);
       const gameHeight = Math.round(this.scale.gameSize.height);
 
-      this.clearJoystick();
+      const keepActiveJoystick = this.state === "playing" && this.controls.joystick.active && !force;
+      if (!keepActiveJoystick) this.clearJoystick();
 
       if (gameWidth !== width || gameHeight !== height) {
         this.scale.resize(width, height);
@@ -3300,18 +3301,16 @@ const leaderboards = (() => {
       if (visibleTargets.length === 0 && shooterLevel === 0 && bazookaLevel === 0) return;
       if (!this.getFreeBullet()) return;
 
+      let bazookaVolleyLevel = 0;
       if (bazookaLevel > 0) {
         this.bazookaAttackCounter += 1;
         const interval = BAZOOKA_ATTACK_INTERVALS[bazookaLevel] || 10;
         if (this.bazookaAttackCounter % interval === 0) {
-          if (this.fireBazooka(visibleTargets[0], time, bazookaLevel)) {
-            this.stats.lastFireAt = time;
-          }
-          return;
+          bazookaVolleyLevel = bazookaLevel;
         }
       }
 
-      if (this.fireShooterVolley(visibleTargets, time, shooterLevel)) {
+      if (this.fireShooterVolley(visibleTargets, time, shooterLevel, bazookaVolleyLevel)) {
         this.stats.lastFireAt = time;
       }
     }
@@ -3328,7 +3327,7 @@ const leaderboards = (() => {
       return CONFIG.playerSpeed * (1 + (ENERGY_DRINK_SPEED_BONUS[energyLevel] || 0));
     }
 
-    fireShooterVolley(visibleTargets, time, shooterLevel) {
+    fireShooterVolley(visibleTargets, time, shooterLevel, bazookaLevel = 0) {
       const count = SHOOTER_BULLET_COUNTS[shooterLevel] || 1;
       const arrowLevel = this.getSuperpowerLevel("arrow");
       const useArrow = arrowLevel > 0;
@@ -3343,6 +3342,10 @@ const leaderboards = (() => {
       for (let i = 0; i < count; i += 1) {
         const target = visibleTargets[i] || null;
         const direction = target ? this.directionToEnemy(target) : randomDirection();
+        if (bazookaLevel > 0 && i === 0) {
+          if (this.fireBazooka(target, time, bazookaLevel)) created += 1;
+          continue;
+        }
         const bullet = this.getFreeBullet();
         if (!bullet) break;
         bullet.fire(this.player.body.x, this.player.body.y, direction.x, direction.y, time, {
