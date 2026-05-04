@@ -5,30 +5,10 @@ const leaderboards = (() => {
   const PUBLISHABLE_KEY = "sb_publishable_stgEvQyS4pIa85D6Qei08A_wui0kw7v";
   const PLAYER_NAME_KEY = "timeKillerPlayerName";
   const CACHE_MS = 60000;
-  const MAX_SCORE = 150000;
-  const MAX_EXP = 150000;
-  const MAX_KILLS = 200000;
-  const KILLS_PER_SECOND_LIMIT = 13;
-  const KILLS_BONUS_LIMIT = 320;
-  const EXP_PER_SECOND_LIMIT = 140;
-  const EXP_BONUS_LIMIT = 2000;
-  const SCORE_PER_SECOND_LIMIT = 225;
-  const SCORE_BONUS_LIMIT = 3000;
   const CATEGORY_LABELS = {
     score: "Очки",
     time: "Время",
     kills: "Убийства",
-  };
-  const ABILITY_MAX_LEVELS = {
-    razer: 3,
-    shooter: 3,
-    bazooka: 3,
-    arrow: 3,
-    masochism: 3,
-    bloody: 3,
-    knockback: 2,
-    energyDrink: 3,
-    thor: 3,
   };
   const state = {
     client: null,
@@ -111,30 +91,24 @@ const leaderboards = (() => {
     return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
   }
 
-  function normalizeBuild(value) {
+  function buildPayloadBuild(value) {
     const source = value && typeof value === "object" ? value : {};
     const rawSkills = source.skills && typeof source.skills === "object" ? source.skills : {};
     const skills = {};
     Object.keys(rawSkills).forEach((id) => {
-      const maxLevel = ABILITY_MAX_LEVELS[id];
       const level = roundNumber(rawSkills[id]);
-      if (!maxLevel || !Number.isFinite(level) || level <= 0) return;
-      skills[id] = Math.min(maxLevel, level);
+      skills[String(id)] = Number.isFinite(level) ? level : null;
     });
-    const rawAidKits = roundNumber(source.aidKits || 0);
-    const aidKits = Number.isFinite(rawAidKits) ? Math.max(0, Math.min(CONFIG.maxAidKits, rawAidKits)) : 0;
+    const rawAidKits = roundNumber(source.aidKits ?? 0);
+    const aidKits = Number.isFinite(rawAidKits) ? rawAidKits : null;
     return { skills, aidKits };
   }
 
-  function buildUpgradeCount(build) {
-    const skills = build?.skills || {};
-    return Object.keys(skills).reduce((sum, id) => sum + Math.max(0, roundNumber(skills[id])), 0) + Math.max(0, roundNumber(build?.aidKits || 0));
-  }
-
   function buildMetricsPayload(summary, runId) {
-    const build = normalizeBuild(summary?.build);
+    const build = buildPayloadBuild(summary?.build);
+    const rawRunId = String(runId || summary?.runId || "");
     const payload = {
-      runId: String(runId || summary?.runId || ""),
+      runId: isUuid(rawRunId) ? rawRunId : null,
       score: roundNumber(summary?.score),
       survivalTime: roundNumber(summary?.survivalTime),
       kills: roundNumber(summary?.kills),
@@ -144,21 +118,6 @@ const leaderboards = (() => {
       deviceType: summary?.deviceType === "mobile" ? "mobile" : "desktop",
       build,
     };
-    if (!isUuid(payload.runId)) return null;
-    if (payload.score < 0 || payload.score > MAX_SCORE) return null;
-    if (payload.survivalTime < 10 || payload.survivalTime > 3600) return null;
-    if (payload.kills < 0 || payload.kills > MAX_KILLS) return null;
-    if (payload.wave < 1 || payload.wave > 1000) return null;
-    if (payload.level < 1 || payload.level > 100) return null;
-    if (payload.exp < 0 || payload.exp > MAX_EXP) return null;
-    if (!Number.isFinite(payload.score + payload.survivalTime + payload.kills + payload.wave + payload.level + payload.exp)) return null;
-    if (payload.wave > Math.floor(payload.survivalTime / 10) + 5) return null;
-    if (payload.kills > payload.survivalTime * KILLS_PER_SECOND_LIMIT + KILLS_BONUS_LIMIT) return null;
-    if (payload.exp > payload.survivalTime * EXP_PER_SECOND_LIMIT + EXP_BONUS_LIMIT) return null;
-    if (payload.level > Math.floor(payload.survivalTime / 12) + 8) return null;
-    if (buildUpgradeCount(build) > Math.max(2, payload.level - 1)) return null;
-    const maxScore = Math.min(MAX_SCORE, payload.survivalTime * SCORE_PER_SECOND_LIMIT + SCORE_BONUS_LIMIT);
-    if (payload.score > maxScore || Math.abs(payload.score - payload.exp) > 5) return null;
     return payload;
   }
 
@@ -172,10 +131,6 @@ const leaderboards = (() => {
 
   function buildCheckpointPayload(summary, runId) {
     return buildMetricsPayload(summary, runId);
-  }
-
-  function canSubmitRun(summary, playerName, runId) {
-    return Boolean(buildRunPayload(summary, playerName, runId));
   }
 
   async function startRun() {
@@ -340,7 +295,6 @@ const leaderboards = (() => {
     startRun,
     submitRun,
     submitCheckpoint,
-    canSubmitRun,
     getSubmitError,
     getSavedPlayerName,
     savePlayerName,
