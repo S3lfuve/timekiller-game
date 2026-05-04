@@ -130,12 +130,12 @@ const CONFIG = {
 const SHOOTER_BULLET_COUNTS = [1, 2, 3, 5];
 const SHOOTER_FIRE_RATE_BONUS = [0, 0, 0.05, 0.15];
 const ARROW_PIERCE_LIMITS = [0, 2, 4, 6];
-const KNOCKBACK_RANGES = [null, { min: 6, max: 11 }, { min: 10, max: 15 }];
+const KNOCKBACK_RANGES = [null, { min: 5, max: 10 }, { min: 9, max: 14 }];
 const MASOCHISM_BULLET_COUNTS = [0, 8, 10, 12];
 const MASOCHISM_BULLET_DAMAGE = [0, 4, 4, 5];
 const MASOCHISM_KNOCKBACK_RANGE = { min: 8, max: 12 };
 const BAZOOKA_ATTACK_INTERVALS = [0, 8, 5, 3];
-const BAZOOKA_KNOCKBACK_RANGES = [null, null, { min: 14, max: 22 }, { min: 17, max: 26 }];
+const BAZOOKA_KNOCKBACK_RANGES = [null, null, { min: 11, max: 18 }, { min: 14, max: 21 }];
 const BAZOOKA_LIGHT_BLEED = { durationMs: 2000, damagePerSecond: 0.3, level: 0.5 };
 const BLOODY_CONFIG = {
   1: { durationMs: 2000, damagePerSecond: 0.6, slowMultiplier: 1 },
@@ -1305,6 +1305,7 @@ function showGameOver(summary) {
   dom.hud.classList.add("hidden");
   transitionTo(() => {
     dom.gameOver.classList.add("screen-active");
+    submitPendingLeaderboardRun();
   });
 }
 
@@ -1516,6 +1517,7 @@ function setNicknameSubmitError(error) {
     auth_failed: "Ошибка авторизации",
     submit_failed: "Ошибка отправки",
     leaderboard_unavailable: "Лидерборд недоступен",
+    invalid_payload: "Результат не отправлен",
   };
   if (error === "run_rejected") messages[error] = "Р РµР·СѓР»СЊС‚Р°С‚ РѕС‚РєР»РѕРЅРµРЅ";
   if (error === "submit_cooldown") messages[error] = "РџРѕРІС‚РѕСЂРё С‡РµСЂРµР· 15 СЃРµРє.";
@@ -1567,11 +1569,7 @@ function submitPendingLeaderboardRun() {
   const pending = runtime.pendingLeaderboardRun;
   if (!service || !pending || pending.submitted || pending.submitting) return "skipped";
   const name = currentNicknameForSubmit();
-  if (!name) {
-    pending.submitted = true;
-    runtime.pendingLeaderboardRun = null;
-    return "skipped";
-  }
+  if (!name) return "skipped";
   const summary = {
     ...pending.summary,
     build: pending.summary?.build
@@ -1588,19 +1586,23 @@ function submitPendingLeaderboardRun() {
       ? pending.tracking.promise.then((runId) => runId || pending.tracking?.runId || "")
       : Promise.resolve("");
   pending.submitting = true;
-  pending.submitted = true;
-  runtime.pendingLeaderboardRun = null;
   runIdPromise
     .then((runId) => {
-      if (!service.canSubmitRun(summary, name, runId)) return false;
       return service.submitRun(summary, name, runId);
     })
     .then((submitted) => {
       pending.submitting = false;
-      if (submitted && dom.leaderboardPanel?.classList.contains("open")) loadLeaderboard(runtime.leaderboardCategory, true);
+      if (submitted) {
+        pending.submitted = true;
+        if (runtime.pendingLeaderboardRun === pending) runtime.pendingLeaderboardRun = null;
+        if (dom.leaderboardPanel?.classList.contains("open")) loadLeaderboard(runtime.leaderboardCategory, true);
+        return;
+      }
+      setNicknameSubmitError(service.getSubmitError?.() || "submit_failed");
     })
     .catch(() => {
       pending.submitting = false;
+      setNicknameSubmitError("submit_failed");
     });
   return "started";
 }
@@ -1613,6 +1615,7 @@ function saveNicknameFromInput() {
   if (saved) {
     dom.nicknameInput.value = saved;
     updateNicknameButton();
+    if (runtime.mode === "gameOver") submitPendingLeaderboardRun();
   }
 }
 
@@ -1853,6 +1856,15 @@ const leaderboards = (() => {
   const PUBLISHABLE_KEY = "sb_publishable_stgEvQyS4pIa85D6Qei08A_wui0kw7v";
   const PLAYER_NAME_KEY = "timeKillerPlayerName";
   const CACHE_MS = 60000;
+  const MAX_SCORE = 150000;
+  const MAX_EXP = 150000;
+  const MAX_KILLS = 200000;
+  const KILLS_PER_SECOND_LIMIT = 13;
+  const KILLS_BONUS_LIMIT = 320;
+  const EXP_PER_SECOND_LIMIT = 140;
+  const EXP_BONUS_LIMIT = 2000;
+  const SCORE_PER_SECOND_LIMIT = 225;
+  const SCORE_BONUS_LIMIT = 3000;
   const CATEGORY_LABELS = {
     score: "Очки",
     time: "Время",
@@ -1984,19 +1996,19 @@ const leaderboards = (() => {
       build,
     };
     if (!isUuid(payload.runId)) return null;
-    if (payload.score < 0 || payload.score > 50000) return null;
+    if (payload.score < 0 || payload.score > MAX_SCORE) return null;
     if (payload.survivalTime < 10 || payload.survivalTime > 3600) return null;
-    if (payload.kills < 0 || payload.kills > 100000) return null;
+    if (payload.kills < 0 || payload.kills > MAX_KILLS) return null;
     if (payload.wave < 1 || payload.wave > 1000) return null;
     if (payload.level < 1 || payload.level > 100) return null;
-    if (payload.exp < 0 || payload.exp > 50000) return null;
+    if (payload.exp < 0 || payload.exp > MAX_EXP) return null;
     if (!Number.isFinite(payload.score + payload.survivalTime + payload.kills + payload.wave + payload.level + payload.exp)) return null;
     if (payload.wave > Math.floor(payload.survivalTime / 10) + 5) return null;
-    if (payload.kills > payload.survivalTime * 6.5 + 160) return null;
-    if (payload.exp > payload.survivalTime * 70 + 1000) return null;
+    if (payload.kills > payload.survivalTime * KILLS_PER_SECOND_LIMIT + KILLS_BONUS_LIMIT) return null;
+    if (payload.exp > payload.survivalTime * EXP_PER_SECOND_LIMIT + EXP_BONUS_LIMIT) return null;
     if (payload.level > Math.floor(payload.survivalTime / 12) + 8) return null;
-    if (buildUpgradeCount(build) > Math.floor(payload.level / 3) + 2) return null;
-    const maxScore = Math.min(50000, payload.survivalTime * 75 + 1000);
+    if (buildUpgradeCount(build) > Math.max(2, payload.level - 1)) return null;
+    const maxScore = Math.min(MAX_SCORE, payload.survivalTime * SCORE_PER_SECOND_LIMIT + SCORE_BONUS_LIMIT);
     if (payload.score > maxScore || Math.abs(payload.score - payload.exp) > 5) return null;
     return payload;
   }
@@ -2044,7 +2056,10 @@ const leaderboards = (() => {
 
   async function submitRun(summary, playerName, runId) {
     const payload = buildRunPayload(summary, playerName, runId);
-    if (!payload) return false;
+    if (!payload) {
+      state.submitError = "invalid_payload";
+      return false;
+    }
     state.submitError = "";
     const session = await ensureSession();
     const client = createClient();
@@ -4495,11 +4510,9 @@ const leaderboards = (() => {
 
   dom.playButton.addEventListener("click", beginGame);
   dom.restartButton.addEventListener("click", () => {
-    submitPendingLeaderboardRun();
     beginGame();
   });
   dom.menuButton.addEventListener("click", () => {
-    submitPendingLeaderboardRun();
     returnToMenu();
   });
   dom.leaderboardButton?.addEventListener("click", toggleLeaderboardPanel);

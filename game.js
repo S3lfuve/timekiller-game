@@ -2305,11 +2305,9 @@
 
   dom.playButton.addEventListener("click", beginGame);
   dom.restartButton.addEventListener("click", () => {
-    submitPendingLeaderboardRun();
     beginGame();
   });
   dom.menuButton.addEventListener("click", () => {
-    submitPendingLeaderboardRun();
     returnToMenu();
   });
   dom.leaderboardButton?.addEventListener("click", toggleLeaderboardPanel);

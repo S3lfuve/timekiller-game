@@ -5,6 +5,15 @@ const leaderboards = (() => {
   const PUBLISHABLE_KEY = "sb_publishable_stgEvQyS4pIa85D6Qei08A_wui0kw7v";
   const PLAYER_NAME_KEY = "timeKillerPlayerName";
   const CACHE_MS = 60000;
+  const MAX_SCORE = 150000;
+  const MAX_EXP = 150000;
+  const MAX_KILLS = 200000;
+  const KILLS_PER_SECOND_LIMIT = 13;
+  const KILLS_BONUS_LIMIT = 320;
+  const EXP_PER_SECOND_LIMIT = 140;
+  const EXP_BONUS_LIMIT = 2000;
+  const SCORE_PER_SECOND_LIMIT = 225;
+  const SCORE_BONUS_LIMIT = 3000;
   const CATEGORY_LABELS = {
     score: "Очки",
     time: "Время",
@@ -136,19 +145,19 @@ const leaderboards = (() => {
       build,
     };
     if (!isUuid(payload.runId)) return null;
-    if (payload.score < 0 || payload.score > 50000) return null;
+    if (payload.score < 0 || payload.score > MAX_SCORE) return null;
     if (payload.survivalTime < 10 || payload.survivalTime > 3600) return null;
-    if (payload.kills < 0 || payload.kills > 100000) return null;
+    if (payload.kills < 0 || payload.kills > MAX_KILLS) return null;
     if (payload.wave < 1 || payload.wave > 1000) return null;
     if (payload.level < 1 || payload.level > 100) return null;
-    if (payload.exp < 0 || payload.exp > 50000) return null;
+    if (payload.exp < 0 || payload.exp > MAX_EXP) return null;
     if (!Number.isFinite(payload.score + payload.survivalTime + payload.kills + payload.wave + payload.level + payload.exp)) return null;
     if (payload.wave > Math.floor(payload.survivalTime / 10) + 5) return null;
-    if (payload.kills > payload.survivalTime * 6.5 + 160) return null;
-    if (payload.exp > payload.survivalTime * 70 + 1000) return null;
+    if (payload.kills > payload.survivalTime * KILLS_PER_SECOND_LIMIT + KILLS_BONUS_LIMIT) return null;
+    if (payload.exp > payload.survivalTime * EXP_PER_SECOND_LIMIT + EXP_BONUS_LIMIT) return null;
     if (payload.level > Math.floor(payload.survivalTime / 12) + 8) return null;
-    if (buildUpgradeCount(build) > Math.floor(payload.level / 3) + 2) return null;
-    const maxScore = Math.min(50000, payload.survivalTime * 75 + 1000);
+    if (buildUpgradeCount(build) > Math.max(2, payload.level - 1)) return null;
+    const maxScore = Math.min(MAX_SCORE, payload.survivalTime * SCORE_PER_SECOND_LIMIT + SCORE_BONUS_LIMIT);
     if (payload.score > maxScore || Math.abs(payload.score - payload.exp) > 5) return null;
     return payload;
   }
@@ -196,7 +205,10 @@ const leaderboards = (() => {
 
   async function submitRun(summary, playerName, runId) {
     const payload = buildRunPayload(summary, playerName, runId);
-    if (!payload) return false;
+    if (!payload) {
+      state.submitError = "invalid_payload";
+      return false;
+    }
     state.submitError = "";
     const session = await ensureSession();
     const client = createClient();

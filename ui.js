@@ -520,6 +520,7 @@ function showGameOver(summary) {
   dom.hud.classList.add("hidden");
   transitionTo(() => {
     dom.gameOver.classList.add("screen-active");
+    submitPendingLeaderboardRun();
   });
 }
 
@@ -731,6 +732,7 @@ function setNicknameSubmitError(error) {
     auth_failed: "Ошибка авторизации",
     submit_failed: "Ошибка отправки",
     leaderboard_unavailable: "Лидерборд недоступен",
+    invalid_payload: "Результат не отправлен",
   };
   if (error === "run_rejected") messages[error] = "Р РµР·СѓР»СЊС‚Р°С‚ РѕС‚РєР»РѕРЅРµРЅ";
   if (error === "submit_cooldown") messages[error] = "РџРѕРІС‚РѕСЂРё С‡РµСЂРµР· 15 СЃРµРє.";
@@ -782,11 +784,7 @@ function submitPendingLeaderboardRun() {
   const pending = runtime.pendingLeaderboardRun;
   if (!service || !pending || pending.submitted || pending.submitting) return "skipped";
   const name = currentNicknameForSubmit();
-  if (!name) {
-    pending.submitted = true;
-    runtime.pendingLeaderboardRun = null;
-    return "skipped";
-  }
+  if (!name) return "skipped";
   const summary = {
     ...pending.summary,
     build: pending.summary?.build
@@ -803,19 +801,23 @@ function submitPendingLeaderboardRun() {
       ? pending.tracking.promise.then((runId) => runId || pending.tracking?.runId || "")
       : Promise.resolve("");
   pending.submitting = true;
-  pending.submitted = true;
-  runtime.pendingLeaderboardRun = null;
   runIdPromise
     .then((runId) => {
-      if (!service.canSubmitRun(summary, name, runId)) return false;
       return service.submitRun(summary, name, runId);
     })
     .then((submitted) => {
       pending.submitting = false;
-      if (submitted && dom.leaderboardPanel?.classList.contains("open")) loadLeaderboard(runtime.leaderboardCategory, true);
+      if (submitted) {
+        pending.submitted = true;
+        if (runtime.pendingLeaderboardRun === pending) runtime.pendingLeaderboardRun = null;
+        if (dom.leaderboardPanel?.classList.contains("open")) loadLeaderboard(runtime.leaderboardCategory, true);
+        return;
+      }
+      setNicknameSubmitError(service.getSubmitError?.() || "submit_failed");
     })
     .catch(() => {
       pending.submitting = false;
+      setNicknameSubmitError("submit_failed");
     });
   return "started";
 }
@@ -828,6 +830,7 @@ function saveNicknameFromInput() {
   if (saved) {
     dom.nicknameInput.value = saved;
     updateNicknameButton();
+    if (runtime.mode === "gameOver") submitPendingLeaderboardRun();
   }
 }
 

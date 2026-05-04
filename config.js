@@ -127,12 +127,12 @@ const CONFIG = {
 const SHOOTER_BULLET_COUNTS = [1, 2, 3, 5];
 const SHOOTER_FIRE_RATE_BONUS = [0, 0, 0.05, 0.15];
 const ARROW_PIERCE_LIMITS = [0, 2, 4, 6];
-const KNOCKBACK_RANGES = [null, { min: 6, max: 11 }, { min: 10, max: 15 }];
+const KNOCKBACK_RANGES = [null, { min: 5, max: 10 }, { min: 9, max: 14 }];
 const MASOCHISM_BULLET_COUNTS = [0, 8, 10, 12];
 const MASOCHISM_BULLET_DAMAGE = [0, 4, 4, 5];
 const MASOCHISM_KNOCKBACK_RANGE = { min: 8, max: 12 };
 const BAZOOKA_ATTACK_INTERVALS = [0, 8, 5, 3];
-const BAZOOKA_KNOCKBACK_RANGES = [null, null, { min: 14, max: 22 }, { min: 17, max: 26 }];
+const BAZOOKA_KNOCKBACK_RANGES = [null, null, { min: 11, max: 18 }, { min: 14, max: 21 }];
 const BAZOOKA_LIGHT_BLEED = { durationMs: 2000, damagePerSecond: 0.3, level: 0.5 };
 const BLOODY_CONFIG = {
   1: { durationMs: 2000, damagePerSecond: 0.6, slowMultiplier: 1 },
